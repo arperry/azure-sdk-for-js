@@ -718,6 +718,7 @@ export class ShareClient extends StorageClient {
       return assertResponse<ShareCreateHeaders, ShareCreateHeaders>(
         await this.context.create({
           ...updatedOptions,
+          ...this.shareClientConfig,
           enabledProtocols: toShareProtocolsString(updatedOptions.protocols),
         }),
       );
@@ -940,6 +941,7 @@ export class ShareClient extends StorageClient {
       );
       return {
         ...res,
+        ...this.shareClientConfig,
         protocols: toShareProtocols(res.enabledProtocols),
       };
     });
@@ -958,6 +960,7 @@ export class ShareClient extends StorageClient {
       return assertResponse<ShareDeleteHeaders, ShareDeleteHeaders>(
         await this.context.delete({
           ...updatedOptions,
+          ...this.shareClientConfig,
         }),
       );
     });
@@ -1012,6 +1015,7 @@ export class ShareClient extends StorageClient {
       return assertResponse<ShareSetMetadataHeaders, ShareSetMetadataHeaders>(
         await this.context.setMetadata({
           ...updatedOptions,
+          ...this.shareClientConfig,
           metadata,
         }),
       );
@@ -1044,6 +1048,7 @@ export class ShareClient extends StorageClient {
         >(
           await this.context.getAccessPolicy({
             ...updatedOptions,
+            ...this.shareClientConfig,
           }),
         );
 
@@ -1128,6 +1133,7 @@ export class ShareClient extends StorageClient {
         return assertResponse<ShareSetAccessPolicyHeaders, ShareSetAccessPolicyHeaders>(
           await this.context.setAccessPolicy({
             ...updatedOptions,
+            ...this.shareClientConfig,
             shareAcl: acl,
           }),
         );
@@ -1146,7 +1152,9 @@ export class ShareClient extends StorageClient {
   ): Promise<ShareCreateSnapshotResponse> {
     return tracingClient.withSpan("ShareClient-createSnapshot", options, async (updatedOptions) => {
       return assertResponse<ShareCreateSnapshotHeaders, ShareCreateSnapshotHeaders>(
-        await this.context.createSnapshot(updatedOptions),
+        await this.context.createSnapshot({
+          ...updatedOptions,
+          ...this.shareClientConfig}),
       );
     });
   }
@@ -1168,6 +1176,7 @@ export class ShareClient extends StorageClient {
       return assertResponse<ShareSetPropertiesHeaders, ShareSetPropertiesHeaders>(
         await this.context.setProperties({
           ...updatedOptions,
+          ...this.shareClientConfig,
           quota: quotaInGB,
         }),
       );
@@ -1187,6 +1196,7 @@ export class ShareClient extends StorageClient {
       return assertResponse<ShareSetPropertiesHeaders, ShareSetPropertiesHeaders>(
         await this.context.setProperties({
           ...options,
+          ...this.shareClientConfig,
           quota: options.quotaInGB,
           tracingOptions: updatedOptions.tracingOptions,
         }),
@@ -1208,7 +1218,10 @@ export class ShareClient extends StorageClient {
         ShareGetStatisticsHeaders & ShareStats,
         ShareGetStatisticsHeaders,
         ShareStats
-      >(await this.context.getStatistics(updatedOptions));
+      >(await this.context.getStatistics({
+        ...updatedOptions,
+        ...this.shareClientConfig,
+      }));
 
       const GBBytes = 1024 * 1024 * 1024;
       return { ...response, shareUsage: Math.ceil(response.shareUsageBytes / GBBytes) };
@@ -1270,6 +1283,16 @@ export class ShareClient extends StorageClient {
         }),
       );
     });
+  }
+
+  /**
+   * Get a {@link ShareLeaseClient} that manages leases on the file.
+   *
+   * @param proposeLeaseId - Initial proposed lease Id.
+   * @returns A new ShareLeaseClient object for managing leases on the file.
+   */
+  public getShareLeaseClient(proposeLeaseId?: string): ShareLeaseClient {
+    return new ShareLeaseClient(this, proposeLeaseId);
   }
 
   /**
@@ -5180,6 +5203,8 @@ export class ShareLeaseClient {
   private _leaseId: string;
   private _url: string;
   private fileOrShare: File | Share;
+
+  private shareClientConfig?: ShareClientConfig;
   /**
    * Gets the lease Id.
    *
@@ -5203,13 +5228,15 @@ export class ShareLeaseClient {
    * @param client - The client to make the lease operation requests.
    * @param leaseId - Initial proposed lease id.
    */
-  constructor(client: ShareFileClient, leaseId?: string) {
+  constructor(client: ShareFileClient | ShareClient, leaseId?: string) {
     const clientContext: StorageClientContext = client["storageClientContext"];
 
     if (client instanceof ShareClient) {
       this.fileOrShare = clientContext.share;
+      this.shareClientConfig = client["shareClientConfig"];
     } else {
       this.fileOrShare = clientContext.file;
+      this.shareClientConfig = client["shareClientConfig"];
     }
     this._url = client.url;
 
@@ -5237,6 +5264,7 @@ export class ShareLeaseClient {
         return assertResponse<LeaseOperationResponseHeaders, LeaseOperationResponseHeaders>(
           await this.fileOrShare.acquireLease({
             ...updatedOptions,
+            ...this.shareClientConfig,
             duration,
             proposedLeaseId: this._leaseId,
           }),
@@ -5266,6 +5294,7 @@ export class ShareLeaseClient {
         >(
           await this.fileOrShare.changeLease(this._leaseId, {
             ...updatedOptions,
+            ...this.shareClientConfig,
             proposedLeaseId,
           }),
         );
@@ -5288,7 +5317,11 @@ export class ShareLeaseClient {
       options,
       async (updatedOptions) => {
         return assertResponse<LeaseOperationResponseHeaders, LeaseOperationResponseHeaders>(
-          await this.fileOrShare.releaseLease(this._leaseId, updatedOptions),
+          await this.fileOrShare.releaseLease(this._leaseId, 
+            {
+              ...updatedOptions,
+              ...this.shareClientConfig,
+            }),
         );
       },
     );
@@ -5306,7 +5339,9 @@ export class ShareLeaseClient {
       options,
       async (updatedOptions) => {
         return assertResponse<LeaseOperationResponseHeaders, LeaseOperationResponseHeaders>(
-          await this.fileOrShare.breakLease(updatedOptions),
+          await this.fileOrShare.breakLease({
+            ...updatedOptions,
+            ...this.shareClientConfig}),
         );
       },
     );
@@ -5329,7 +5364,11 @@ export class ShareLeaseClient {
           throw new RangeError("The renewLease operation is not available for lease on file.");
         }
         return assertResponse<LeaseOperationResponseHeaders, LeaseOperationResponseHeaders>(
-          await this.fileOrShare.renewLease(this._leaseId, updatedOptions),
+          await this.fileOrShare.renewLease(this._leaseId, 
+            {
+              ...updatedOptions,
+              ...this.shareClientConfig,
+            }),
         );
       },
     );

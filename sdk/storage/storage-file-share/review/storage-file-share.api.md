@@ -1449,6 +1449,7 @@ export class ShareClient extends StorageClient {
     getDirectoryClient(directoryName: string): ShareDirectoryClient;
     getPermission(filePermissionKey: string, options?: ShareGetPermissionOptions): Promise<ShareGetPermissionResponse>;
     getProperties(options?: ShareGetPropertiesOptions): Promise<ShareGetPropertiesResponse>;
+    getShareLeaseClient(proposeLeaseId?: string): ShareLeaseClient;
     getStatistics(options?: ShareGetStatisticsOptions): Promise<ShareGetStatisticsResponse>;
     get name(): string;
     get rootDirectoryClient(): ShareDirectoryClient;
@@ -1725,6 +1726,9 @@ export interface ShareGetPropertiesHeaders {
         [propertyName: string]: string;
     };
     nextAllowedQuotaDowngradeTime?: Date;
+    paidBurstingEnabled?: boolean;
+    paidBurstingMaxBandwidthMibps?: number;
+    paidBurstingMaxIops?: number;
     provisionedBandwidthMibps?: number;
     provisionedEgressMBps?: number;
     provisionedIngressMBps?: number;
@@ -1809,7 +1813,7 @@ export interface ShareItemInternal {
 
 // @public
 export class ShareLeaseClient {
-    constructor(client: ShareFileClient, leaseId?: string);
+    constructor(client: ShareFileClient | ShareClient, leaseId?: string);
     acquireLease(duration?: number, options?: LeaseOperationOptions): Promise<LeaseOperationResponse>;
     breakLease(options?: LeaseOperationOptions): Promise<LeaseOperationResponse>;
     changeLease(proposedLeaseId: string, options?: LeaseOperationOptions): Promise<LeaseOperationResponse>;
@@ -1821,6 +1825,10 @@ export class ShareLeaseClient {
 
 // @public
 export interface SharePermission {
+    // Warning: (ae-forgotten-export) The symbol "FilePermissionFormat" needs to be exported by the entry point index.d.ts
+    //
+    // (undocumented)
+    format?: FilePermissionFormat;
     permission: string;
 }
 
@@ -1852,6 +1860,12 @@ export interface SharePropertiesInternal {
     leaseStatus?: LeaseStatusType;
     // (undocumented)
     nextAllowedQuotaDowngradeTime?: Date;
+    // (undocumented)
+    paidBurstingEnabled?: boolean;
+    // (undocumented)
+    paidBurstingMaxBandwidthMibps?: number;
+    // (undocumented)
+    paidBurstingMaxIops?: number;
     // (undocumented)
     provisionedBandwidthMiBps?: number;
     // (undocumented)
