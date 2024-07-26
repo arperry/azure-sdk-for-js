@@ -2050,6 +2050,24 @@ export class ContainerClient extends StorageClient {
     });
   }
 
+  public generateSasStringToSign(options: ContainerGenerateSasUrlOptions): string {
+      if (!(this.credential instanceof StorageSharedKeyCredential)) {
+        throw new RangeError(
+          "Can only generate the SAS when the client is initialized with a shared key credential",
+        );
+      }
+
+      const sas = generateBlobSASQueryParameters(
+        {
+          containerName: this._containerName,
+          ...options,
+        },
+        this.credential,
+      ).toString();
+
+      return sas;
+  }
+
   /**
    * Creates a BlobBatchClient object to conduct batch operations.
    *

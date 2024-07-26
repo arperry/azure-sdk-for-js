@@ -791,4 +791,22 @@ export class DataLakeFileSystemClient extends StorageClient {
       resolve(appendToURLQuery(this.url, sas));
     });
   }
+  
+  public generateSasStringToSign(options: FileSystemGenerateSasUrlOptions): string {
+      if (!(this.credential instanceof StorageSharedKeyCredential)) {
+        throw RangeError(
+          "Can only generate the SAS when the client is initialized with a shared key credential",
+        );
+      }
+
+      const sas = generateDataLakeSASQueryParameters(
+        {
+          fileSystemName: this.name,
+          ...options,
+        },
+        this.credential,
+      ).toString();
+      
+      return sas;
+  }
 }

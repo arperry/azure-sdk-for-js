@@ -676,4 +676,35 @@ export class QueueServiceClient extends StorageClient {
 
     return appendToURLQuery(this.url, sas);
   }
+
+  public generateSasStringToSign(
+    expiresOn?: Date,
+    permissions: AccountSASPermissions = AccountSASPermissions.parse("r"),
+    resourceTypes: string = "sco",
+    options: ServiceGenerateAccountSasUrlOptions = {},
+  ): string {
+    if (!(this.credential instanceof StorageSharedKeyCredential)) {
+      throw RangeError(
+        "Can only generate the account SAS when the client is initialized with a shared key credential",
+      );
+    }
+
+    if (expiresOn === undefined) {
+      const now = new Date();
+      expiresOn = new Date(now.getTime() + 3600 * 1000);
+    }
+
+    const sas = generateAccountSASQueryParameters(
+      {
+        permissions,
+        expiresOn,
+        resourceTypes,
+        services: AccountSASServices.parse("q").toString(),
+        ...options,
+      },
+      this.credential,
+    ).toString();
+
+    return appendToURLQuery(this.url, sas);
+  }
 }

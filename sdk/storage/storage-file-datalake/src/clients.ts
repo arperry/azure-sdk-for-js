@@ -1002,6 +1002,25 @@ export class DataLakeDirectoryClient extends DataLakePathClient {
       resolve(appendToURLQuery(this.url, sas));
     });
   }
+
+  public generateSasStringToSign(options: DirectoryGenerateSasUrlOptions): string {
+      if (!(this.credential instanceof StorageSharedKeyCredential)) {
+        throw RangeError(
+          "Can only generate the SAS when the client is initialized with a shared key credential",
+        );
+      }
+
+      const sas = generateDataLakeSASQueryParameters(
+        {
+          fileSystemName: this.fileSystemName,
+          pathName: this.name,
+          isDirectory: true,
+          ...options,
+        },
+        this.credential,
+      ).toString();
+      return sas;
+  }
 }
 
 /**
@@ -1883,5 +1902,23 @@ export class DataLakeFileClient extends DataLakePathClient {
 
       resolve(appendToURLQuery(this.url, sas));
     });
+  }
+
+  public generateSasStringToSign(options: FileGenerateSasUrlOptions): string {
+      if (!(this.credential instanceof StorageSharedKeyCredential)) {
+        throw RangeError(
+          "Can only generate the SAS when the client is initialized with a shared key credential",
+        );
+      }
+
+      const sas = generateDataLakeSASQueryParameters(
+        {
+          fileSystemName: this.fileSystemName,
+          pathName: this.name,
+          ...options,
+        },
+        this.credential,
+      ).toString();
+      return sas;
   }
 }

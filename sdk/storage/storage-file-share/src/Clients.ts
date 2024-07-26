@@ -31,6 +31,7 @@ import {
   FileGetRangeListDiffResponse,
   FileItem,
   FileListHandlesResponse,
+  FilePermissionFormat,
   FileSetHTTPHeadersResponse,
   FileSetMetadataResponse,
   FileStartCopyResponse,
@@ -123,6 +124,7 @@ import {
   WithResponse,
   assertResponse,
   removeEmptyString,
+  asSharePermission,
 } from "./utils/utils.common";
 import { Credential } from "../../storage-blob/src/credentials/Credential";
 import { StorageSharedKeyCredential } from "../../storage-blob/src/credentials/StorageSharedKeyCredential";
@@ -213,6 +215,21 @@ export interface ShareCreateOptions extends CommonOptions {
    * If not specified, the default is true.
    */
   enableSnapshotVirtualDirectoryAccess?: boolean;
+
+  /** 
+   * Optional. Boolean. Default if not specified is false. This property enables paid bursting. 
+   */
+  paidBurstingEnabled?: boolean;
+
+  /** 
+   * Optional. Integer. Default if not specified is the maximum throughput the file share can support. Current maximum for a file share is 10,340  MiB/sec. 
+   */
+  paidBurstingMaxBandwidthMibps?: number;
+
+  /** 
+   * Optional. Integer. Default if not specified is the maximum IOPS the file share can support. Current maximum for a file share is 102,400 IOPS. 
+   */
+  paidBurstingMaxIops?: number;
 }
 
 /**
@@ -356,6 +373,27 @@ export interface ShareSetPropertiesOptions extends CommonOptions {
    * If specified, the operation only succeeds if the resource's lease is active and matches this ID.
    */
   leaseAccessConditions?: LeaseAccessConditions;
+
+  /**
+   * Specifies whether the snapshot virtual directory should be accessible at the root of share mount point when NFS is enabled.
+   * If not specified, the default is true.
+   */
+  enableSnapshotVirtualDirectoryAccess?: boolean;
+
+  /** 
+   * Optional. Boolean. Default if not specified is false. This property enables paid bursting. 
+   */
+  paidBurstingEnabled?: boolean;
+
+  /** 
+   * Optional. Integer. Default if not specified is the maximum throughput the file share can support. Current maximum for a file share is 10,340  MiB/sec. 
+   */
+  paidBurstingMaxBandwidthMibps?: number;
+
+  /** 
+   * Optional. Integer. Default if not specified is the maximum IOPS the file share can support. Current maximum for a file share is 102,400 IOPS. 
+   */
+  paidBurstingMaxIops?: number;
 }
 
 /**
@@ -438,6 +476,13 @@ export interface ShareCreatePermissionOptions extends CommonOptions {
  * Options to configure the {@link ShareClient.getPermission} operation.
  */
 export interface ShareGetPermissionOptions extends CommonOptions {
+
+  /** 
+   * Optional. Available for version 2023-06-01 and later. Specifies the format in which the permission is returned. 
+   * Acceptable values are SDDL or binary. If x-ms-file-permission-format is unspecified or explicitly set to SDDL, the permission is returned in SDDL format. 
+   * If x-ms-file-permission-format is explicitly set to binary, the permission is returned as a base64 string representing the binary encoding of the permission 
+   */
+  filePermissionFormat?: FilePermissionFormat;
   /**
    * An implementation of the `AbortSignalLike` interface to signal the request to cancel the operation.
    * For example, use the &commat;azure/abort-controller to create an `AbortSignal`.
@@ -1237,7 +1282,7 @@ export class ShareClient extends StorageClient {
    * @param filePermission - File permission described in the SDDL
    */
   public async createPermission(
-    filePermission: string,
+    filePermission: string | SharePermission,
     options: ShareCreatePermissionOptions = {},
   ): Promise<ShareCreatePermissionResponse> {
     return tracingClient.withSpan(
@@ -1246,9 +1291,7 @@ export class ShareClient extends StorageClient {
       async (updatedOptions) => {
         return assertResponse<ShareCreatePermissionHeaders, ShareCreatePermissionHeaders>(
           await this.context.createPermission(
-            {
-              permission: filePermission,
-            },
+            asSharePermission(filePermission),
             {
               ...updatedOptions,
               ...this.shareClientConfig,
@@ -1307,6 +1350,23 @@ export class ShareClient extends StorageClient {
    * @returns The SAS URI consisting of the URI to the resource represented by this client, followed by the generated SAS token.
    */
   public generateSasUrl(options: ShareGenerateSasUrlOptions): string {
+    if (!(this.credential instanceof StorageSharedKeyCredential)) {
+      throw RangeError(
+        "Can only generate the SAS when the client is initialized with a shared key credential",
+      );
+    }
+
+    const sas = generateFileSASQueryParameters(
+      {
+        shareName: this.name,
+        ...options,
+      },
+      this.credential,
+    ).toString();
+
+    return appendToURLQuery(this.url, sas);
+  }
+  public generateSasStringToSign(options: ShareGenerateSasUrlOptions): string {
     if (!(this.credential instanceof StorageSharedKeyCredential)) {
       throw RangeError(
         "Can only generate the SAS when the client is initialized with a shared key credential",
@@ -3384,6 +3444,13 @@ export interface FileRenameOptions extends CommonOptions {
    */
   filePermission?: string;
 
+  /** 
+   * Optional. Available for version 2023-06-01 and later. Specifies the format in which the permission is returned. 
+   * Acceptable values are SDDL or binary. If x-ms-file-permission-format is unspecified or explicitly set to SDDL, the permission is returned in SDDL format. 
+   * If x-ms-file-permission-format is explicitly set to binary, the permission is returned as a base64 string representing the binary encoding of the permission 
+   */
+  filePermissionFormat?: FilePermissionFormat;
+
   /**
    * Optional.
    * Key of the permission to be set for the directory/file. Note: Only one of the filePermission or filePermissionKey should be specified.
@@ -3452,6 +3519,13 @@ export interface DirectoryRenameOptions extends CommonOptions {
    * If specified the permission (security descriptor) shall be set for the directory/file.
    */
   filePermission?: string;
+
+  /** 
+   * Optional. Available for version 2023-06-01 and later. Specifies the format in which the permission is returned. 
+   * Acceptable values are SDDL or binary. If x-ms-file-permission-format is unspecified or explicitly set to SDDL, the permission is returned in SDDL format. 
+   * If x-ms-file-permission-format is explicitly set to binary, the permission is returned as a base64 string representing the binary encoding of the permission 
+   */
+  filePermissionFormat?: FilePermissionFormat;
 
   /**
    * Optional.
@@ -5042,6 +5116,25 @@ export class ShareFileClient extends StorageClient {
    * @returns The SAS URI consisting of the URI to the resource represented by this client, followed by the generated SAS token.
    */
   public generateSasUrl(options: FileGenerateSasUrlOptions): string {
+    if (!(this.credential instanceof StorageSharedKeyCredential)) {
+      throw RangeError(
+        "Can only generate the SAS when the client is initialized with a shared key credential",
+      );
+    }
+
+    const sas = generateFileSASQueryParameters(
+      {
+        shareName: this.shareName,
+        filePath: this.path,
+        ...options,
+      },
+      this.credential,
+    ).toString();
+
+    return appendToURLQuery(this.url, sas);
+  }
+
+  public generateSasStringToSign(options: FileGenerateSasUrlOptions): string {
     if (!(this.credential instanceof StorageSharedKeyCredential)) {
       throw RangeError(
         "Can only generate the SAS when the client is initialized with a shared key credential",

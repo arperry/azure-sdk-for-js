@@ -2166,6 +2166,31 @@ export class BlobClient extends StorageClient {
   }
 
   /**
+   * Only available for BlobClient constructed with a shared key credential.
+   *
+   */
+  public generateSasStringToSign(options: BlobGenerateSasUrlOptions): string {
+      if (!(this.credential instanceof StorageSharedKeyCredential)) {
+        throw new RangeError(
+          "Can only generate the SAS when the client is initialized with a shared key credential",
+        );
+      }
+
+      const sas = generateBlobSASQueryParameters(
+        {
+          containerName: this._containerName,
+          blobName: this._name,
+          snapshotTime: this._snapshot,
+          versionId: this._versionId,
+          ...options,
+        },
+        this.credential,
+      ).toString();
+
+      return sas;
+  }
+
+  /**
    * Delete the immutablility policy on the blob.
    *
    * @param options - Optional options to delete immutability policy on the blob.

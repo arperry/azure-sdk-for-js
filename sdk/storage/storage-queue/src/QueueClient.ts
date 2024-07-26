@@ -1172,4 +1172,22 @@ export class QueueClient extends StorageClient {
 
     return appendToURLQuery(this.url, sas);
   }
+
+  public generateSasStringToSign(options: QueueGenerateSasUrlOptions): string {
+    if (!(this.credential instanceof StorageSharedKeyCredential)) {
+      throw RangeError(
+        "Can only generate the SAS when the client is initialized with a shared key credential",
+      );
+    }
+
+    const sas = generateQueueSASQueryParameters(
+      {
+        queueName: this.name,
+        ...options,
+      },
+      this.credential,
+    ).toString();
+
+    return appendToURLQuery(this.url, sas);
+  }
 }
